@@ -2,6 +2,7 @@ library duration_picker;
 
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -19,19 +20,19 @@ const double _kPiByTwo = math.pi / 2;
 const double _kCircleTop = _kPiByTwo;
 
 class DialPainter extends CustomPainter {
-  const DialPainter({
-    required this.context,
-    required this.labels,
-    required this.backgroundColor,
-    required this.accentColor,
-    required this.theta,
-    required this.textDirection,
-    required this.selectedValue,
-    required this.pct,
-    required this.baseUnitMultiplier,
-    required this.baseUnitHand,
-    required this.baseUnit,
-  });
+  const DialPainter(
+      {required this.context,
+      required this.labels,
+      required this.backgroundColor,
+      required this.accentColor,
+      required this.theta,
+      required this.textDirection,
+      required this.selectedValue,
+      required this.pct,
+      required this.baseUnitMultiplier,
+      required this.baseUnitHand,
+      required this.baseUnit,
+      this.ringWidth});
 
   final List<TextPainter> labels;
   final Color? backgroundColor;
@@ -40,6 +41,7 @@ class DialPainter extends CustomPainter {
   final TextDirection textDirection;
   final int? selectedValue;
   final BuildContext context;
+  final double? ringWidth;
 
   final double pct;
   final int baseUnitMultiplier;
@@ -52,14 +54,29 @@ class DialPainter extends CustomPainter {
     const _sweep = _kTwoPi - _epsilon;
     const _startAngle = -math.pi / 2.0;
 
-    final radius = size.shortestSide / 2.0;
+    final radius = size.shortestSide * 0.75;
     final center = Offset(size.width / 2.0, size.height / 2.0);
     final centerPoint = center;
 
     var pctTheta = (0.25 - (theta % _kTwoPi) / _kTwoPi) % 1.0;
+    var shadowOffSet = Offset((size.width / 2.0), (size.height / 2.0));
 
-    // Draw the background outer ring
-    canvas.drawCircle(centerPoint, radius, Paint()..color = backgroundColor!);
+    var outerCircleInnerShadow = radius + 5;
+    // if (ringWidth != null) {
+    //   outerCircleInnerShadow = radius - (ringWidth! * 2);
+    // }
+    var outerCircleInnerShadowOffSet =
+        Offset((size.width / 2.0), (size.height / 2.0));
+    var gradiee = ui.Gradient.radial(center, radius / .8,
+        [Colors.white, Color.fromRGBO(10, 10, 10, 1)], [0.775, 0.999]);
+    var shadedPaint = Paint()
+      ..color = Color.fromRGBO(10, 0, 0, 0.9)
+      ..shader = gradiee;
+    canvas.drawCircle(
+        outerCircleInnerShadowOffSet, outerCircleInnerShadow, shadedPaint);
+
+    // // Draw the background outer ring
+    // canvas.drawCircle(centerPoint, radius, Paint()..color = Colors.white70);
 
     // Draw a translucent circle for every secondary unit
     for (var i = 0; i < baseUnitMultiplier; i = i + 1) {
@@ -67,9 +84,20 @@ class DialPainter extends CustomPainter {
           Paint()..color = accentColor.withOpacity((i == 0) ? 0.3 : 0.1));
     }
 
+    print('Outer is ' + radius.toString());
+
+    //Inner circle shadow
+    var innerCircleRadius = radius * 0.88;
+    if (ringWidth != null) {
+      innerCircleRadius = radius - (ringWidth! * 2);
+    }
+    shadowOffSet = Offset((size.width / 2.0) + 4, (size.height / 2.0) + 4);
+    canvas.drawCircle(
+        shadowOffSet, innerCircleRadius, Paint()..color = Colors.black38);
+
     // Draw the inner background circle
-    canvas.drawCircle(centerPoint, radius * 0.88,
-        Paint()..color = Theme.of(context).canvasColor);
+    canvas.drawCircle(centerPoint, innerCircleRadius,
+        Paint()..color = Color.fromRGBO(240, 240, 240, 1));
 
     // Get the offset point for an angle value of theta, and a distance of _radius
     Offset getOffsetForTheta(double theta, double _radius) {
@@ -78,9 +106,9 @@ class DialPainter extends CustomPainter {
     }
 
     // Draw the handle that is used to drag and to indicate the position around the circle
-    final handlePaint = Paint()..color = accentColor;
-    final handlePoint = getOffsetForTheta(theta, radius - 10.0);
-    canvas.drawCircle(handlePoint, 20.0, handlePaint);
+    final handlePaint = Paint()..color = Colors.purple;
+    final handlePoint = getOffsetForTheta(theta, radius - 23.0);
+    canvas.drawCircle(handlePoint, 25.0, handlePaint);
 
     // Get the appropriate base unit string
     String getBaseUnitString() {
@@ -174,7 +202,7 @@ class DialPainter extends CustomPainter {
         final labelOffset = Offset(-label.width / 2.0, -label.height / 2.0);
 
         label.paint(
-            canvas, getOffsetForTheta(labelTheta, radius - 40.0) + labelOffset);
+            canvas, getOffsetForTheta(labelTheta, radius - 25.0) + labelOffset);
 
         labelTheta += labelThetaIncrement;
       }
@@ -196,12 +224,16 @@ class _Dial extends StatefulWidget {
   const _Dial(
       {required this.duration,
       required this.onChanged,
+      this.backgroundColor,
       this.baseUnit = BaseUnit.minute,
-      this.snapToMins = 1.0});
+      this.snapToMins = 1.0,
+      this.ringWidth = 25.0});
 
   final Duration duration;
   final ValueChanged<Duration> onChanged;
   final BaseUnit baseUnit;
+  final Color? backgroundColor;
+  final double? ringWidth;
 
   /// The resolution of mins of the dial, i.e. if snapToMins = 5.0, only durations of 5min intervals will be selectable.
   final double? snapToMins;
@@ -559,7 +591,15 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
     final labels = <TextPainter>[];
     for (var duration in baseUnitMarkerValues) {
       var painter = TextPainter(
-        text: TextSpan(style: style, text: _durationToBaseUnitString(duration)),
+        text: TextSpan(
+          style: TextStyle(
+              fontSize: 15,
+              // fontFamily: 'Rubik',
+              fontWeight: FontWeight.w300,
+              color: Color.fromRGBO(15, 15, 15, 0.2)),
+          text: '⚫',
+          // text: _durationToBaseUnitString(duration)
+        ),
         textDirection: TextDirection.ltr,
       )..layout();
       labels.add(painter);
@@ -569,14 +609,16 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    Color? backgroundColor;
-    switch (themeData.brightness) {
-      case Brightness.light:
-        backgroundColor = Colors.grey[200];
-        break;
-      case Brightness.dark:
-        backgroundColor = themeData.backgroundColor;
-        break;
+    Color? backgroundColor = this.widget.backgroundColor;
+    if (backgroundColor == null) {
+      switch (themeData.brightness) {
+        case Brightness.light:
+          backgroundColor = Colors.grey[200];
+          break;
+        case Brightness.dark:
+          backgroundColor = themeData.backgroundColor;
+          break;
+      }
     }
 
     final theme = Theme.of(context);
@@ -593,18 +635,18 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
         onTapUp: _handleTapUp,
         child: CustomPaint(
           painter: DialPainter(
-            pct: _pct,
-            baseUnitMultiplier: _secondaryUnitValue,
-            baseUnitHand: _baseUnitValue,
-            baseUnit: widget.baseUnit,
-            context: context,
-            selectedValue: selectedDialValue,
-            labels: _buildBaseUnitLabels(theme.textTheme),
-            backgroundColor: backgroundColor,
-            accentColor: themeData.colorScheme.secondary,
-            theta: _theta.value,
-            textDirection: Directionality.of(context),
-          ),
+              pct: _pct,
+              baseUnitMultiplier: _secondaryUnitValue,
+              baseUnitHand: _baseUnitValue,
+              baseUnit: widget.baseUnit,
+              context: context,
+              selectedValue: selectedDialValue,
+              labels: _buildBaseUnitLabels(theme.textTheme),
+              backgroundColor: backgroundColor,
+              accentColor: themeData.colorScheme.secondary,
+              theta: _theta.value,
+              textDirection: Directionality.of(context),
+              ringWidth: this.widget.ringWidth),
         ));
   }
 }
@@ -804,6 +846,7 @@ class DurationPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    //https://www.youtube.com/watch?v=iiL065berk8 for sample implementation
     return SizedBox(
         width: width ?? _kDurationPickerWidthPortrait / 1.5,
         height: height ?? _kDurationPickerHeightPortrait / 1.5,
