@@ -110,7 +110,8 @@ class DialPainter extends CustomPainter {
     }
 
     // Draw the handle that is used to drag and to indicate the position around the circle
-    final handlePaint = Paint()..color = Colors.purple;
+    // final handlePaint = Paint()..color = Colors.purple;
+    final handlePaint = Paint()..color = Color.fromRGBO(4, 42, 43, 1);
     final handlePoint = getOffsetForTheta(theta, radius - 23.0);
     canvas.drawCircle(handlePoint, 25.0, handlePaint);
 
