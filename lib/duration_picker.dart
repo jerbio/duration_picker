@@ -1,10 +1,16 @@
 library duration_picker;
 
+import 'package:intl/intl.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/painting.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 const Duration _kDialAnimateDuration = Duration(milliseconds: 200);
 
@@ -18,6 +24,7 @@ const double _kTwoPi = 2 * math.pi;
 const double _kPiByTwo = math.pi / 2;
 
 const double _kCircleTop = _kPiByTwo;
+const double _radPerMinute = _kTwoPi / 60;
 
 /// Use [DialPainter] to style the durationPicker to your style.
 class DialPainter extends CustomPainter {
@@ -39,7 +46,7 @@ class DialPainter extends CustomPainter {
   final Color? backgroundColor;
   final Color accentColor;
   final double theta;
-  final TextDirection textDirection;
+  final ui.TextDirection textDirection;
   final int? selectedValue;
   final BuildContext context;
   final double? ringWidth;
@@ -123,7 +130,7 @@ class DialPainter extends CustomPainter {
         case BaseUnit.second:
           return 'sec.';
         case BaseUnit.minute:
-          return 'min.';
+          return 'minaa.';
         case BaseUnit.hour:
           return 'hr.';
       }
@@ -137,52 +144,52 @@ class DialPainter extends CustomPainter {
         case BaseUnit.second:
           return 'm ';
         case BaseUnit.minute:
-          return 'h ';
+          return 'huii ';
         case BaseUnit.hour:
           return 'd ';
       }
     }
 
     // Draw the Text in the center of the circle which displays the duration string
-    final secondaryUnits = (baseUnitMultiplier == 0)
-        ? ''
-        : '$baseUnitMultiplier${getSecondaryUnitString()} ';
-    final baseUnits = '$baseUnitHand';
+    // final secondaryUnits = (baseUnitMultiplier == 0)
+    //     ? ''
+    //     : '$baseUnitMultiplier${getSecondaryUnitString()} ';
+    // final baseUnits = '$baseUnitHand';
 
-    final textDurationValuePainter = TextPainter(
-      textAlign: TextAlign.center,
-      text: TextSpan(
-        text: '$secondaryUnits$baseUnits',
-        style: Theme.of(context)
-            .textTheme
-            .headline2!
-            .copyWith(fontSize: size.shortestSide * 0.15),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    final middleForValueText = Offset(
-      centerPoint.dx - (textDurationValuePainter.width / 2),
-      centerPoint.dy - textDurationValuePainter.height / 2,
-    );
-    textDurationValuePainter.paint(canvas, middleForValueText);
+    // final textDurationValuePainter = TextPainter(
+    //   textAlign: TextAlign.center,
+    //   text: TextSpan(
+    //     text: '$secondaryUnits$baseUnits',
+    //     style: Theme.of(context)
+    //         .textTheme
+    //         .headline2!
+    //         .copyWith(fontSize: size.shortestSide * 0.15),
+    //   ),
+    //   textDirection: TextDirection.ltr,
+    // )..layout();
+    // final middleForValueText = Offset(
+    //   centerPoint.dx - (textDurationValuePainter.width / 2),
+    //   centerPoint.dy - textDurationValuePainter.height / 2,
+    // );
+    // textDurationValuePainter.paint(canvas, middleForValueText);
 
-    final textMinPainter = TextPainter(
-      textAlign: TextAlign.center,
-      text: TextSpan(
-        text: getBaseUnitString(), //th: ${theta}',
-        style: Theme.of(context).textTheme.bodyText2,
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    textMinPainter.paint(
-      canvas,
-      Offset(
-        centerPoint.dx - (textMinPainter.width / 2),
-        centerPoint.dy +
-            (textDurationValuePainter.height / 2) -
-            textMinPainter.height / 2,
-      ),
-    );
+    // final textMinPainter = TextPainter(
+    //   textAlign: TextAlign.center,
+    //   text: TextSpan(
+    //     text: getBaseUnitString(), //th: ${theta}',
+    //     style: Theme.of(context).textTheme.bodyText2,
+    //   ),
+    //   textDirection: TextDirection.ltr,
+    // )..layout();
+    // textMinPainter.paint(
+    //   canvas,
+    //   Offset(
+    //     centerPoint.dx - (textMinPainter.width / 2),
+    //     centerPoint.dy +
+    //         (textDurationValuePainter.height / 2) -
+    //         textMinPainter.height / 2,
+    //   ),
+    // );
 
     // Draw an arc around the circle for the amount of the circle that has elapsed.
     final elapsedPainter = Paint()
@@ -231,19 +238,22 @@ class DialPainter extends CustomPainter {
 }
 
 class _Dial extends StatefulWidget {
-  const _Dial(
+  _Dial(
       {required this.duration,
       required this.onChanged,
       this.backgroundColor,
       this.baseUnit = BaseUnit.minute,
       this.snapToMins = 1.0,
-      this.ringWidth = 25.0});
+      this.ringWidth = 25.0,
+      this.duratationTextStyle});
 
-  final Duration duration;
+  NumberFormat formatter = new NumberFormat("00");
+  Duration duration;
   final ValueChanged<Duration> onChanged;
   final BaseUnit baseUnit;
   final Color? backgroundColor;
   final double? ringWidth;
+  final TextStyle? duratationTextStyle;
 
   /// The resolution of mins of the dial, i.e. if snapToMins = 5.0, only durations of 5min intervals will be selectable.
   final double? snapToMins;
@@ -253,9 +263,13 @@ class _Dial extends StatefulWidget {
 }
 
 class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
+  late TextEditingController _hourInputController;
+  late TextEditingController _minuteInputController;
   @override
   void initState() {
     super.initState();
+    initializeHourAndMinuteControllers(widget.duration, isFirstRun: true);
+
     _thetaController = AnimationController(
       duration: _kDialAnimateDuration,
       vsync: this,
@@ -283,6 +297,105 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
   MaterialLocalizations? localizations;
   MediaQueryData? media;
 
+  void initializeHourAndMinuteControllers(
+    Duration duration, {
+    bool isFirstRun = false,
+  }) {
+    if (!isFirstRun) {
+      _hourInputController.dispose();
+      _minuteInputController.dispose();
+    }
+    _hourInputController = TextEditingController(
+      text: duration.inHours.toString(),
+    );
+    _hourInputController.addListener(() {
+      int textBoxHourValue =
+          int.tryParse(_hourInputController.value.text) ?? duration.inHours;
+      if (_hourInputController.value.text.isEmpty) {
+        textBoxHourValue = 0;
+      }
+      int textBoxMinuteValue =
+          int.tryParse(_minuteInputController.value.text) ??
+              duration.inMinutes % 60;
+      if (_minuteInputController.value.text.isEmpty) {
+        textBoxMinuteValue = 0;
+      }
+
+      final int dialHourValue = _secondaryUnitHand();
+      final int dialMinValue = _baseUnitHand();
+      if (textBoxHourValue != dialHourValue ||
+          textBoxMinuteValue != dialMinValue) {
+        final updatedDuration =
+            Duration(hours: textBoxHourValue, minutes: dialMinValue);
+        final thetaVal = _getThetaForDuration(updatedDuration, widget.baseUnit);
+
+        widget.onChanged(updatedDuration);
+        setState(() {
+          widget.duration = updatedDuration;
+          _baseUnitValue = textBoxMinuteValue;
+          _secondaryUnitValue = dialHourValue;
+          final box = context.findRenderObject() as RenderBox?;
+          _center = box?.size.center(Offset.zero);
+          _thetaTween
+            ..begin = thetaVal
+            ..end = thetaVal;
+          _turningAngle =
+              _kPiByTwo - (updatedDuration.inMinutes * _radPerMinute);
+        });
+      }
+    });
+    _minuteInputController = TextEditingController(
+      text: widget.formatter.format(duration.inMinutes % 60),
+    );
+
+    _minuteInputController.addListener(() {
+      int textBoxHourValue =
+          int.tryParse(_hourInputController.value.text) ?? duration.inHours;
+      if (_hourInputController.value.text.isEmpty) {
+        textBoxHourValue = 0;
+      }
+      int textBoxMinuteValue =
+          int.tryParse(_minuteInputController.value.text) ??
+              duration.inMinutes % 60;
+      if (_minuteInputController.value.text.isEmpty) {
+        textBoxMinuteValue = 0;
+      }
+      int dialHourValue = _secondaryUnitHand();
+      final int dialMinValue = _baseUnitHand();
+      if (textBoxHourValue != dialHourValue ||
+          textBoxMinuteValue != dialMinValue) {
+        if (textBoxMinuteValue >= Duration.minutesPerHour) {
+          dialHourValue = 0;
+        }
+
+        final updatedDuration =
+            Duration(hours: dialHourValue, minutes: textBoxMinuteValue);
+        _hourInputController.text =
+            widget.formatter.format(updatedDuration.inHours);
+        _minuteInputController.text = widget.formatter
+            .format(updatedDuration.inMinutes % Duration.minutesPerHour);
+
+        double thetaVal =
+            _getThetaForDuration(updatedDuration, widget.baseUnit);
+        thetaVal = (updatedDuration.inHours * _kTwoPi) + thetaVal;
+        widget.onChanged(updatedDuration);
+        setState(() {
+          widget.duration = updatedDuration;
+          _baseUnitValue = textBoxMinuteValue;
+          _secondaryUnitValue = dialHourValue;
+          final box = context.findRenderObject() as RenderBox?;
+          _center = box?.size.center(Offset.zero);
+          _thetaTween
+            ..begin = thetaVal
+            ..end = thetaVal;
+
+          _turningAngle =
+              _kPiByTwo - (updatedDuration.inMinutes * _radPerMinute);
+        });
+      }
+    });
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -295,6 +408,8 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
   @override
   void dispose() {
     _thetaController.dispose();
+    _hourInputController.dispose();
+    _minuteInputController.dispose();
     super.dispose();
   }
 
@@ -416,6 +531,9 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
     _baseUnitValue = _baseUnitHand();
     final d = _angleToDuration(_turningAngle);
     widget.onChanged(d);
+    setState(() {
+      initializeHourAndMinuteControllers(d);
+    });
 
     return d;
   }
@@ -447,12 +565,12 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
     final box = context.findRenderObject() as RenderBox?;
     _position = box?.globalToLocal(details.globalPosition);
     _center = box?.size.center(Offset.zero);
-
     _notifyOnChangedIfNeeded();
   }
 
   void _handlePanUpdate(DragUpdateDetails details) {
     final oldTheta = _theta.value;
+
     _position = _position! + details.delta;
     // _position! += details.delta;
     _updateThetaForPan();
@@ -623,7 +741,7 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
           text: '⚫',
           // text: _durationToBaseUnitString(duration)
         ),
-        textDirection: TextDirection.ltr,
+        textDirection: ui.TextDirection.ltr,
       )..layout();
       labels.add(painter);
     }
@@ -650,27 +768,91 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
     _secondaryUnitValue = _secondaryUnitHand();
     _baseUnitValue = _baseUnitHand();
 
-    return GestureDetector(
-        excludeFromSemantics: true,
-        onPanStart: _handlePanStart,
-        onPanUpdate: _handlePanUpdate,
-        onPanEnd: _handlePanEnd,
-        onTapUp: _handleTapUp,
-        child: CustomPaint(
-          painter: DialPainter(
-              pct: _pct,
-              baseUnitMultiplier: _secondaryUnitValue,
-              baseUnitHand: _baseUnitValue,
-              baseUnit: widget.baseUnit,
-              context: context,
-              selectedValue: selectedDialValue,
-              labels: _buildBaseUnitLabels(theme.textTheme),
-              backgroundColor: backgroundColor,
-              accentColor: themeData.colorScheme.secondary,
-              theta: _theta.value,
-              textDirection: Directionality.of(context),
-              ringWidth: this.widget.ringWidth),
-        ));
+    return Stack(
+      children: [
+        Center(
+          child: SizedBox(
+            height: 300,
+            width: 300,
+            child: GestureDetector(
+                excludeFromSemantics: true,
+                onPanStart: _handlePanStart,
+                onPanUpdate: _handlePanUpdate,
+                onPanEnd: _handlePanEnd,
+                onTapUp: _handleTapUp,
+                child: CustomPaint(
+                  painter: DialPainter(
+                      pct: _pct,
+                      baseUnitMultiplier: _secondaryUnitValue,
+                      baseUnitHand: _baseUnitValue,
+                      baseUnit: widget.baseUnit,
+                      context: context,
+                      selectedValue: selectedDialValue,
+                      labels: _buildBaseUnitLabels(theme.textTheme),
+                      backgroundColor: backgroundColor,
+                      accentColor: themeData.colorScheme.secondary,
+                      theta: _theta.value,
+                      textDirection: Directionality.of(context),
+                      ringWidth: this.widget.ringWidth),
+                )),
+          ),
+        ),
+        Center(
+          child: SizedBox(
+            height: 85,
+            width: 120,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  height: 120,
+                  width: 50,
+                  child: Column(
+                    children: [
+                      TextField(
+                        style: widget.duratationTextStyle,
+                        textAlign: ui.TextAlign.center,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        controller: _hourInputController,
+                      ),
+                      const Text("Hour"),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  height: 50,
+                  child: Text(
+                    ":",
+                    style: widget.duratationTextStyle,
+                  ),
+                ),
+                SizedBox(
+                  height: 120,
+                  width: 50,
+                  child: Column(
+                    children: [
+                      TextField(
+                        style: widget.duratationTextStyle,
+                        textAlign: ui.TextAlign.center,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        controller: _minuteInputController,
+                      ),
+                      const Text("Min"),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -732,6 +914,14 @@ class DurationPickerDialogState extends State<DurationPickerDialog> {
 
   void _handleOk() {
     Navigator.pop(context, _selectedDuration);
+  }
+
+  int get Hours {
+    return _selectedDuration?.inHours ?? 0;
+  }
+
+  int get Minutes {
+    return (_selectedDuration?.inMinutes ?? 0) % 60;
   }
 
   @override
@@ -870,23 +1060,25 @@ class DurationPicker extends StatelessWidget {
   final ValueChanged<Duration> onChange;
   final BaseUnit baseUnit;
   final double? snapToMins;
-
+  final TextStyle? fontStyle;
   final double? width;
   final double? height;
 
-  const DurationPicker({
-    Key? key,
-    this.duration = Duration.zero,
-    required this.onChange,
-    this.baseUnit = BaseUnit.minute,
-    this.snapToMins,
-    this.width,
-    this.height,
-  }) : super(key: key);
+  const DurationPicker(
+      {Key? key,
+      this.duration = Duration.zero,
+      required this.onChange,
+      this.baseUnit = BaseUnit.minute,
+      this.snapToMins,
+      this.width,
+      this.height,
+      this.fontStyle})
+      : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     //https://www.youtube.com/watch?v=iiL065berk8 for sample implementation
+
     return SizedBox(
       width: width ?? _kDurationPickerWidthPortrait / 1.5,
       height: height ?? _kDurationPickerHeightPortrait / 1.5,
@@ -900,6 +1092,7 @@ class DurationPicker extends StatelessWidget {
               onChanged: onChange,
               baseUnit: baseUnit,
               snapToMins: snapToMins,
+              duratationTextStyle: fontStyle,
             ),
           ),
         ],
