@@ -688,7 +688,7 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
   }
 
   List<TextPainter> _buildBaseUnitLabels(TextTheme textTheme) {
-    final style = textTheme.subtitle1;
+    // final style = textTheme.subtitle1;
 
     var baseUnitMarkerValues = <Duration>[];
 
@@ -757,7 +757,7 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
           backgroundColor = Colors.grey[200];
           break;
         case Brightness.dark:
-          backgroundColor = themeData.backgroundColor;
+          backgroundColor = themeData.scaffoldBackgroundColor;
           break;
       }
     }
@@ -813,6 +813,10 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
                         style: widget.duratationTextStyle,
                         textAlign: ui.TextAlign.center,
                         keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done,
+                        onTapOutside: (PointerDownEvent event) {
+                          FocusManager.instance.primaryFocus?.unfocus();
+                        },
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
                         ],
@@ -838,6 +842,10 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
                         style: widget.duratationTextStyle,
                         textAlign: ui.TextAlign.center,
                         keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done,
+                        onTapOutside: (PointerDownEvent event) {
+                          FocusManager.instance.primaryFocus?.unfocus();
+                        },
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
                         ],
