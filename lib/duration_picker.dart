@@ -245,7 +245,9 @@ class _Dial extends StatefulWidget {
       this.baseUnit = BaseUnit.minute,
       this.snapToMins = 1.0,
       this.ringWidth = 25.0,
-      this.duratationTextStyle});
+      this.duratationTextStyle,
+      Key? key})
+      : super(key: key);
 
   NumberFormat formatter = new NumberFormat("00");
   Duration duration;
@@ -1063,7 +1065,7 @@ Future<Duration?> showDurationPicker({
 }
 
 /// The [DurationPicker] widget.
-class DurationPicker extends StatelessWidget {
+class DurationPicker extends StatefulWidget {
   final Duration duration;
   final ValueChanged<Duration> onChange;
   final BaseUnit baseUnit;
@@ -1084,23 +1086,28 @@ class DurationPicker extends StatelessWidget {
       : super(key: key);
 
   @override
+  State<DurationPicker> createState() => _DurationPickerState();
+}
+
+class _DurationPickerState extends State<DurationPicker> {
+  @override
   Widget build(BuildContext context) {
     //https://www.youtube.com/watch?v=iiL065berk8 for sample implementation
 
     return SizedBox(
-      width: width ?? _kDurationPickerWidthPortrait / 1.5,
-      height: height ?? _kDurationPickerHeightPortrait / 1.5,
+      width: widget.width ?? _kDurationPickerWidthPortrait / 1.5,
+      height: widget.height ?? _kDurationPickerHeightPortrait / 1.5,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           Expanded(
             child: _Dial(
-              duration: duration,
-              onChanged: onChange,
-              baseUnit: baseUnit,
-              snapToMins: snapToMins,
-              duratationTextStyle: fontStyle,
+              duration: widget.duration,
+              onChanged: widget.onChange,
+              baseUnit: widget.baseUnit,
+              snapToMins: widget.snapToMins,
+              duratationTextStyle: widget.fontStyle,
             ),
           ),
         ],
