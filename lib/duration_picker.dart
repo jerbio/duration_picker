@@ -40,6 +40,11 @@ class DialPainter extends CustomPainter {
       required this.baseUnitMultiplier,
       required this.baseUnitHand,
       required this.baseUnit,
+      this.trackColor = Colors.white,
+      this.trackEdgeColor = const Color.fromRGBO(10, 10, 10, 1),
+      this.handleColor = const Color.fromRGBO(4, 42, 43, 1),
+      this.innerCircleColor = const Color.fromRGBO(240, 240, 240, 1),
+      this.innerShadowColor = Colors.black38,
       this.ringWidth});
 
   final List<TextPainter> labels;
@@ -51,10 +56,37 @@ class DialPainter extends CustomPainter {
   final BuildContext context;
   final double? ringWidth;
 
+  /// The unfilled part of the ring, behind the elapsed arc. Defaults to the
+  /// previously hardcoded white, which is what made the wheel render as a
+  /// white donut on a dark surface.
+  final Color trackColor;
+
+  /// The outer rim the track fades into.
+  final Color trackEdgeColor;
+
+  /// The draggable knob. Defaults to the previous hardcoded dark teal.
+  final Color handleColor;
+
+  /// The disc the readout sits on.
+  final Color innerCircleColor;
+
+  /// The drop shadow cast by that disc.
+  final Color innerShadowColor;
+
   final double pct;
   final int baseUnitMultiplier;
   final int baseUnitHand;
   final BaseUnit baseUnit;
+
+  /// Proportions, expressed as fractions of the dial radius.
+  ///
+  /// Each is the fraction the previous hardcoded pixel value represented at
+  /// the dial's original fixed radius of 225, so the default rendering is
+  /// unchanged and every other size scales with it.
+  static const double _handleRadiusRatio = 25.0 / 225.0;
+  static const double _handleInsetRatio = 23.0 / 225.0;
+  static const double _markerInsetRatio = 25.0 / 225.0;
+  static const double _innerShadowOffsetRatio = 4.0 / 225.0;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -75,8 +107,8 @@ class DialPainter extends CustomPainter {
     // }
     var outerCircleInnerShadowOffSet =
         Offset((size.width / 2.0), (size.height / 2.0));
-    var gradiee = ui.Gradient.radial(center, radius / .8,
-        [Colors.white, Color.fromRGBO(10, 10, 10, 1)], [0.775, 0.999]);
+    var gradiee = ui.Gradient.radial(
+        center, radius / .8, [trackColor, trackEdgeColor], [0.775, 0.999]);
     var shadedPaint = Paint()
       ..color = Color.fromRGBO(10, 0, 0, 0.9)
       ..shader = gradiee;
@@ -95,20 +127,20 @@ class DialPainter extends CustomPainter {
       );
     }
 
-    print('Outer is ' + radius.toString());
-
     //Inner circle shadow
     var innerCircleRadius = radius * 0.88;
     if (ringWidth != null) {
       innerCircleRadius = radius - (ringWidth! * 2);
     }
-    shadowOffSet = Offset((size.width / 2.0) + 4, (size.height / 2.0) + 4);
+    final double innerShadowOffset = radius * _innerShadowOffsetRatio;
+    shadowOffSet = Offset((size.width / 2.0) + innerShadowOffset,
+        (size.height / 2.0) + innerShadowOffset);
     canvas.drawCircle(
-        shadowOffSet, innerCircleRadius, Paint()..color = Colors.black38);
+        shadowOffSet, innerCircleRadius, Paint()..color = innerShadowColor);
 
     // Draw the inner background circle
-    canvas.drawCircle(centerPoint, innerCircleRadius,
-        Paint()..color = Color.fromRGBO(240, 240, 240, 1));
+    canvas.drawCircle(
+        centerPoint, innerCircleRadius, Paint()..color = innerCircleColor);
 
     // Get the offset point for an angle value of theta, and a distance of _radius
     Offset getOffsetForTheta(double theta, double radius) {
@@ -118,9 +150,10 @@ class DialPainter extends CustomPainter {
 
     // Draw the handle that is used to drag and to indicate the position around the circle
     // final handlePaint = Paint()..color = Colors.purple;
-    final handlePaint = Paint()..color = Color.fromRGBO(4, 42, 43, 1);
-    final handlePoint = getOffsetForTheta(theta, radius - 23.0);
-    canvas.drawCircle(handlePoint, 25.0, handlePaint);
+    final handlePaint = Paint()..color = handleColor;
+    final handlePoint =
+        getOffsetForTheta(theta, radius - radius * _handleInsetRatio);
+    canvas.drawCircle(handlePoint, radius * _handleRadiusRatio, handlePaint);
 
     // Get the appropriate base unit string
     String getBaseUnitString() {
@@ -219,7 +252,9 @@ class DialPainter extends CustomPainter {
         final labelOffset = Offset(-label.width / 2.0, -label.height / 2.0);
 
         label.paint(
-            canvas, getOffsetForTheta(labelTheta, radius - 25.0) + labelOffset);
+            canvas,
+            getOffsetForTheta(labelTheta, radius - radius * _markerInsetRatio) +
+                labelOffset);
 
         labelTheta += labelThetaIncrement;
       }
@@ -245,7 +280,16 @@ class _Dial extends StatefulWidget {
       this.baseUnit = BaseUnit.minute,
       this.snapToMins = 1.0,
       this.ringWidth = 25.0,
-      this.duratationTextStyle});
+      this.duratationTextStyle,
+      this.hourLabel,
+      this.minuteLabel,
+      this.dialSize = 300.0,
+      this.trackColor,
+      this.trackEdgeColor,
+      this.handleColor,
+      this.innerCircleColor,
+      this.innerShadowColor,
+      this.markerColor});
 
   NumberFormat formatter = new NumberFormat("00");
   Duration duration;
@@ -254,6 +298,29 @@ class _Dial extends StatefulWidget {
   final Color? backgroundColor;
   final double? ringWidth;
   final TextStyle? duratationTextStyle;
+
+  /// Caption under the hours field. Defaults to English when omitted, so
+  /// existing callers are unchanged.
+  final String? hourLabel;
+
+  /// Caption under the minutes field.
+  final String? minuteLabel;
+
+  /// The square the dial is PAINTED into.
+  ///
+  /// [DialPainter] draws a circle of `size.shortestSide * 0.75` centred in
+  /// this box and does not clip, so the visible wheel is 1.5x this value.
+  /// Size it accordingly.
+  final double dialSize;
+
+  /// Dial colours. Each defaults to the value that used to be hardcoded in
+  /// [DialPainter], so omitting them renders exactly as before.
+  final Color? trackColor;
+  final Color? trackEdgeColor;
+  final Color? handleColor;
+  final Color? innerCircleColor;
+  final Color? innerShadowColor;
+  final Color? markerColor;
 
   /// The resolution of mins of the dial, i.e. if snapToMins = 5.0, only durations of 5min intervals will be selectable.
   final double? snapToMins;
@@ -734,10 +801,12 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
       var painter = TextPainter(
         text: TextSpan(
           style: TextStyle(
-              fontSize: 15,
+              // 15pt at the original 300pt dial, kept proportional since.
+              fontSize: widget.dialSize * (15.0 / 300.0),
               // fontFamily: 'Rubik',
               fontWeight: FontWeight.w300,
-              color: Color.fromRGBO(15, 15, 15, 0.2)),
+              color:
+                  widget.markerColor ?? const Color.fromRGBO(15, 15, 15, 0.2)),
           text: '⚫',
           // text: _durationToBaseUnitString(duration)
         ),
@@ -772,8 +841,8 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
       children: [
         Center(
           child: SizedBox(
-            height: 300,
-            width: 300,
+            height: widget.dialSize,
+            width: widget.dialSize,
             child: GestureDetector(
                 excludeFromSemantics: true,
                 onPanStart: _handlePanStart,
@@ -791,6 +860,15 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
                       labels: _buildBaseUnitLabels(theme.textTheme),
                       backgroundColor: backgroundColor,
                       accentColor: themeData.colorScheme.secondary,
+                      trackColor: widget.trackColor ?? Colors.white,
+                      trackEdgeColor: widget.trackEdgeColor ??
+                          const Color.fromRGBO(10, 10, 10, 1),
+                      handleColor: widget.handleColor ??
+                          const Color.fromRGBO(4, 42, 43, 1),
+                      innerCircleColor: widget.innerCircleColor ??
+                          const Color.fromRGBO(240, 240, 240, 1),
+                      innerShadowColor:
+                          widget.innerShadowColor ?? Colors.black38,
                       theta: _theta.value,
                       textDirection: Directionality.of(context),
                       ringWidth: this.widget.ringWidth),
@@ -799,63 +877,83 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
         ),
         Center(
           child: SizedBox(
-            height: 85,
-            width: 120,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  height: 120,
-                  width: 50,
-                  child: Column(
-                    children: [
-                      TextField(
-                        style: widget.duratationTextStyle,
-                        textAlign: ui.TextAlign.center,
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.done,
-                        onTapOutside: (PointerDownEvent event) {
-                          FocusManager.instance.primaryFocus?.unfocus();
-                        },
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
+            // 60% of the dial across, 32% down — the ratios the fixed
+            // 180x96 layout below occupied at the original 300pt dial.
+            width: widget.dialSize * 0.6,
+            height: widget.dialSize * 0.32,
+            child: FittedBox(
+              fit: BoxFit.contain,
+              child: SizedBox(
+                height: 96,
+                width: 180,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      height: 96,
+                      width: 56,
+                      child: Column(
+                        children: [
+                          TextField(
+                            style: widget.duratationTextStyle,
+                            textAlign: ui.TextAlign.center,
+                            keyboardType: TextInputType.number,
+                            textInputAction: TextInputAction.done,
+                            onTapOutside: (PointerDownEvent event) {
+                              FocusManager.instance.primaryFocus?.unfocus();
+                            },
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            controller: _hourInputController,
+                          ),
+                          Text(widget.hourLabel ?? "Hour"),
                         ],
-                        controller: _hourInputController,
                       ),
-                      const Text("Hour"),
-                    ],
-                  ),
-                ),
-                SizedBox(
-                  height: 50,
-                  child: Text(
-                    ":",
-                    style: widget.duratationTextStyle,
-                  ),
-                ),
-                SizedBox(
-                  height: 120,
-                  width: 50,
-                  child: Column(
-                    children: [
-                      TextField(
-                        style: widget.duratationTextStyle,
-                        textAlign: ui.TextAlign.center,
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.done,
-                        onTapOutside: (PointerDownEvent event) {
-                          FocusManager.instance.primaryFocus?.unfocus();
-                        },
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
+                    ),
+                    SizedBox(
+                      height: 96,
+                      child: Column(
+                        children: [
+                          Text(
+                            ":",
+                            style: widget.duratationTextStyle,
+                          ),
+                          // Same caption, invisible: it gives this column the
+                          // exact height of its neighbours, so the colon aligns
+                          // with the digits by construction.
+                          Opacity(
+                            opacity: 0,
+                            child: Text(widget.minuteLabel ?? "Min"),
+                          ),
                         ],
-                        controller: _minuteInputController,
                       ),
-                      const Text("Min"),
-                    ],
-                  ),
+                    ),
+                    SizedBox(
+                      height: 96,
+                      width: 56,
+                      child: Column(
+                        children: [
+                          TextField(
+                            style: widget.duratationTextStyle,
+                            textAlign: ui.TextAlign.center,
+                            keyboardType: TextInputType.number,
+                            textInputAction: TextInputAction.done,
+                            onTapOutside: (PointerDownEvent event) {
+                              FocusManager.instance.primaryFocus?.unfocus();
+                            },
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            controller: _minuteInputController,
+                          ),
+                          Text(widget.minuteLabel ?? "Min"),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -1072,6 +1170,22 @@ class DurationPicker extends StatelessWidget {
   final double? width;
   final double? height;
 
+  /// Captions under the hours and minutes fields. Supply localized text;
+  /// omitted, the package falls back to English.
+  final String? hourLabel;
+  final String? minuteLabel;
+
+  /// The square the dial is painted into; the visible wheel is 1.5x this.
+  final double dialSize;
+
+  /// Dial colours; each defaults to the package's original hardcoded value.
+  final Color? trackColor;
+  final Color? trackEdgeColor;
+  final Color? handleColor;
+  final Color? innerCircleColor;
+  final Color? innerShadowColor;
+  final Color? markerColor;
+
   const DurationPicker(
       {Key? key,
       this.duration = Duration.zero,
@@ -1080,6 +1194,15 @@ class DurationPicker extends StatelessWidget {
       this.snapToMins,
       this.width,
       this.height,
+      this.hourLabel,
+      this.minuteLabel,
+      this.dialSize = 300.0,
+      this.trackColor,
+      this.trackEdgeColor,
+      this.handleColor,
+      this.innerCircleColor,
+      this.innerShadowColor,
+      this.markerColor,
       this.fontStyle})
       : super(key: key);
 
@@ -1100,6 +1223,15 @@ class DurationPicker extends StatelessWidget {
               onChanged: onChange,
               baseUnit: baseUnit,
               snapToMins: snapToMins,
+              hourLabel: hourLabel,
+              minuteLabel: minuteLabel,
+              dialSize: dialSize,
+              trackColor: trackColor,
+              trackEdgeColor: trackEdgeColor,
+              handleColor: handleColor,
+              innerCircleColor: innerCircleColor,
+              innerShadowColor: innerShadowColor,
+              markerColor: markerColor,
               duratationTextStyle: fontStyle,
             ),
           ),
