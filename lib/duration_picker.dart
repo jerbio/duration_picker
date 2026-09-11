@@ -45,7 +45,20 @@ class DialPainter extends CustomPainter {
       this.handleColor = const Color.fromRGBO(4, 42, 43, 1),
       this.innerCircleColor = const Color.fromRGBO(240, 240, 240, 1),
       this.innerShadowColor = Colors.black38,
+      this.radiusRatio = legacyRadiusRatio,
       this.ringWidth});
+
+  /// The dial radius as a fraction of the box's shortest side.
+  ///
+  /// The package has always drawn at 0.75 and never clipped, so the visible
+  /// wheel is 1.5x its layout box. That is [legacyRadiusRatio], kept as the
+  /// default so existing dials render exactly as before. A caller that
+  /// wants the wheel to fit — and to be TOUCHABLE across its whole face,
+  /// since hit-testing never extends past the box — passes 0.5.
+  final double radiusRatio;
+
+  /// The ratio the package drew at before it was configurable.
+  static const double legacyRadiusRatio = 0.75;
 
   final List<TextPainter> labels;
   final Color? backgroundColor;
@@ -94,7 +107,7 @@ class DialPainter extends CustomPainter {
     const sweep = _kTwoPi - epsilon;
     const startAngle = -math.pi / 2.0;
 
-    final radius = size.shortestSide * 0.75;
+    final radius = size.shortestSide * radiusRatio;
     final center = Offset(size.width / 2.0, size.height / 2.0);
     final centerPoint = center;
 
@@ -268,6 +281,7 @@ class DialPainter extends CustomPainter {
     return oldDelegate.labels != labels ||
         oldDelegate.backgroundColor != backgroundColor ||
         oldDelegate.accentColor != accentColor ||
+        oldDelegate.radiusRatio != radiusRatio ||
         oldDelegate.theta != theta;
   }
 }
@@ -284,6 +298,7 @@ class _Dial extends StatefulWidget {
       this.hourLabel,
       this.minuteLabel,
       this.dialSize = 300.0,
+      this.dialRadiusRatio = DialPainter.legacyRadiusRatio,
       this.trackColor,
       this.trackEdgeColor,
       this.handleColor,
@@ -306,12 +321,14 @@ class _Dial extends StatefulWidget {
   /// Caption under the minutes field.
   final String? minuteLabel;
 
-  /// The square the dial is PAINTED into.
+  /// The square the dial is laid out — and listens for touches — in.
   ///
-  /// [DialPainter] draws a circle of `size.shortestSide * 0.75` centred in
-  /// this box and does not clip, so the visible wheel is 1.5x this value.
-  /// Size it accordingly.
+  /// [DialPainter] draws a circle of `dialSize * dialRadiusRatio` centred in
+  /// this box and does not clip.
   final double dialSize;
+
+  /// See [DialPainter.radiusRatio].
+  final double dialRadiusRatio;
 
   /// Dial colours. Each defaults to the value that used to be hardcoded in
   /// [DialPainter], so omitting them renders exactly as before.
@@ -626,6 +643,10 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
   Offset? _position;
   Offset? _center;
 
+  /// The radius the painter will draw at, which every inner proportion
+  /// follows so that changing [dialRadiusRatio] moves only the box.
+  double get _radius => widget.dialSize * widget.dialRadiusRatio;
+
   void _handlePanStart(DragStartDetails details) {
     assert(!_dragging);
     _dragging = true;
@@ -801,8 +822,9 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
       var painter = TextPainter(
         text: TextSpan(
           style: TextStyle(
-              // 15pt at the original 300pt dial, kept proportional since.
-              fontSize: widget.dialSize * (15.0 / 300.0),
+              // 15pt at the original 225pt radius, kept proportional to the
+              // RADIUS so the markers do not change with [dialRadiusRatio].
+              fontSize: _radius * (15.0 / 225.0),
               // fontFamily: 'Rubik',
               fontWeight: FontWeight.w300,
               color:
@@ -869,6 +891,7 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
                           const Color.fromRGBO(240, 240, 240, 1),
                       innerShadowColor:
                           widget.innerShadowColor ?? Colors.black38,
+                      radiusRatio: widget.dialRadiusRatio,
                       theta: _theta.value,
                       textDirection: Directionality.of(context),
                       ringWidth: this.widget.ringWidth),
@@ -877,10 +900,10 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
         ),
         Center(
           child: SizedBox(
-            // 60% of the dial across, 32% down — the ratios the fixed
-            // 180x96 layout below occupied at the original 300pt dial.
-            width: widget.dialSize * 0.6,
-            height: widget.dialSize * 0.32,
+            // 80% of the radius across, 43% down — the ratios the fixed
+            // 180x96 layout below occupied at the original 225pt radius.
+            width: _radius * (180.0 / 225.0),
+            height: _radius * (96.0 / 225.0),
             child: FittedBox(
               fit: BoxFit.contain,
               child: SizedBox(
@@ -915,9 +938,17 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
                       height: 96,
                       child: Column(
                         children: [
-                          Text(
-                            ":",
-                            style: widget.duratationTextStyle,
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              top: 7,
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                            ),
+                            child: Text(
+                              ":",
+                              style: widget.duratationTextStyle,
+                            ),
                           ),
                           // Same caption, invisible: it gives this column the
                           // exact height of its neighbours, so the colon aligns
@@ -1175,8 +1206,13 @@ class DurationPicker extends StatelessWidget {
   final String? hourLabel;
   final String? minuteLabel;
 
-  /// The square the dial is painted into; the visible wheel is 1.5x this.
+  /// The square the dial is laid out in.
   final double dialSize;
+
+  /// How far from the centre the painter draws, as a fraction of
+  /// [dialSize]. Defaults to the package's historical 0.75 (the wheel
+  /// paints 1.5x its box). See [DialPainter.radiusRatio].
+  final double dialRadiusRatio;
 
   /// Dial colours; each defaults to the package's original hardcoded value.
   final Color? trackColor;
@@ -1197,6 +1233,7 @@ class DurationPicker extends StatelessWidget {
       this.hourLabel,
       this.minuteLabel,
       this.dialSize = 300.0,
+      this.dialRadiusRatio = DialPainter.legacyRadiusRatio,
       this.trackColor,
       this.trackEdgeColor,
       this.handleColor,
@@ -1226,6 +1263,7 @@ class DurationPicker extends StatelessWidget {
               hourLabel: hourLabel,
               minuteLabel: minuteLabel,
               dialSize: dialSize,
+              dialRadiusRatio: dialRadiusRatio,
               trackColor: trackColor,
               trackEdgeColor: trackEdgeColor,
               handleColor: handleColor,
